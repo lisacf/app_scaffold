@@ -1,6 +1,7 @@
 import Franc from 'franc';
 import View from 'view';
 import Storage from 'storage';
+import I18n from 'i18n';
 
 const MAX_HEIGHT = 375;
 
@@ -16,58 +17,49 @@ class TicketSidebar {
       this.client.invoke('resize', { height: newHeight, width: '100%' });
     }});
 
-    this.getLanguages();
+    this.getLanguages().then(this.renderMain.bind(this));
 
     this.view.switchTo('loading');
   }
 
-  getCurrentUser() {
-    return this.client.request({ url: '/api/v2/users/me.json' });
-  }
-
   getLanguages() {
-    this.getTicketDescriptionLanguage().then(
-      language => this.setTicketLanguage(language)
-    );
-    this.getTicketRequesterLocale().then(
-      locale => {
-        this.setRequesterLocale(locale);
-        this.parseLanguages();
-      }
-    );
-  }
+    return this.client.get(['ticket.requester.locale', 'ticket.description']).then(function(data) {
+      var description = data["ticket.description"];
+      data["ticket.requester.language"] = I18n.t(data["ticket.requester.locale"]);
 
-  getTicketRequesterLocale() {
-    return this.client.get('ticket.requester').then(requester => {
-      const locale = requester['ticket.requester'].locale;
-      return locale;
+      if (description == undefined) {
+        data["ticket.description.language"] = "Empty ticket description"
+      } else {
+        data["ticket.description.language"] = I18n.t(Franc(description));
+        data["ticket.language.probability"] = Franc.all(data["ticket.description"])[0][1];
+      }
+      return data
     });
   }
 
-  getTicketDescriptionLanguage() {
-    return this.client.get('ticket.description').then(description => {
-      const language = Franc(description['ticket.description']);
-      return language;
-    })
-  }
-
-  setRequesterLocale(locale) {
-    this.requesterLocale = locale;
-  }
-
-  setTicketLanguage(language) {
-    this.ticketLanguage = language;
-  }
-
-  parseLanguages() {
+  setCustomField(data) {
+    var language = data["ticket.description.language"];
     var languages = {
-      "ticket-language": this.ticketLanguage,
-      "requester-locale": this.requesterLocale
+      "English": "english",
+      "Spanish": "spanish",
+      "Russian": "russian",
+      "German": "german",
+      "French": "french",
+      "Dutch": "dutch",
+      "Italian": "italian",
+      "Portuguese": "portuguese",
+      "Japanese": "japanese",
+      "Chinese": "chinese"
     }
-    this.renderMain(languages);
+    if (languages[language]) {
+      return this.client.set('ticket.customField:custom_field_114095962393', languages[language]);
+    } else {
+      console.log("no language");
+    }
   }
 
   renderMain(data) {
+    this.setCustomField(data);
     this.view.switchTo('main', data);
   }
 }
